@@ -1,0 +1,14 @@
+/*.sh
+  Content-Type: text/x-sh; charset=utf-8
+
+/*.php
+  Content-Type: text/x-php; charset=utf-8
+
+/*.conf
+  Content-Type: text/plain; charset=utf-8
+
+/*.pcb
+  Content-Type: application/x-pcb-layout
+
+/*.fp
+  Content-Type: application/x-pcb-footprint

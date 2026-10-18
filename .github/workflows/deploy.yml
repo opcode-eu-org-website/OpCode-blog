@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages with "Obraz" (https://obraz.pirx.ru/) Static Site Generator
+name: Deploy with "Obraz" (https://obraz.pirx.ru/) Static Site Generator
 
 on:
   push:
@@ -30,9 +30,10 @@ jobs:
         run: |
           pip3 install --break-system-packages PyYAML jinja2 markdown docopt
 
-      - name: Run build script via Make
+      - name: Run build script
         run: |
           python3 obraz.py build -d /tmp/output-www/
+          cp _headers /tmp/output-www/
           (cd /tmp/output-www/; rm -f offline.tar.xz; tar -chJf ../offline.tar.xz .; mv ../offline.tar.xz .)
 
       - name: Upload artifact
@@ -40,13 +41,40 @@ jobs:
         with:
           path: '/tmp/output-www/'
 
-  deploy:
+  deploy-github:
+    # https://opcode-eu-org-website.github.io/opcode-blog
+    needs: build
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  deploy-cloudflare:
+    # https://blog-opcode.pages.dev/
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download GitHub Pages artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: github-pages
+          path: ./tmp-artifact
+
+      - name: Unpack Pages artifact
+        run: |
+          mkdir dist
+          ls -l ./tmp-artifact
+          tar -xvf ./tmp-artifact/*.tar -C dist
+          echo "/ /index.xhtml 200" >> dist/_redirects
+          ls -l ./dist
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy dist --project-name=opcode
