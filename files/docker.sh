@@ -43,15 +43,14 @@ start_net() {
 	vlog "  - przenoszę drugi koniec pary veth do przestrzeni nazw (network namespace) kontenera Dockerowego"
 	ip link set "$VETH_GUEST" netns "$PID"
 	
-	vlog "  - zmieniam nazwę interfejsu wewnątrz kontenera na eth0 i podnosze go"
-	nsenter -t $PID -n ip link set "$VETH_GUEST" name eth0
-	nsenter -t $PID -n ip link set eth0 up
+	vlog "  - podnoszę interfejs wewnątrz kontenera"
+	nsenter -t $PID -n ip link set "$VETH_GUEST" up
 	
 	vlog "  - konfiguruję interfejsu wewnątrz kontenera (${IP:-dhcp})"
 	if [ "$IP" = "" ]; then
-		nsenter -t $PID -n dhclient eth0 || nsenter -t $PID -n udhcpc -i eth0
+		nsenter -t $PID -n dhclient "$VETH_GUEST" || nsenter -t $PID -n udhcpc -i "$VETH_GUEST"
 	else
-		nsenter -t $PID -n ip addr add eth0 "$IP"
+		nsenter -t $PID -n ip addr add "$VETH_GUEST" "$IP"
 	fi
 }
 
@@ -60,7 +59,11 @@ stop_net() {
 	
 	# usuwanie pary veth związanej z zakończonym kontenerem
 	vlog "  - usuwam parę urządzeń veth (poprzez usunięcie $VETH_HOST)"
-	ip link del $VETH_HOST
+	if [ -d "/sys/class/net/$VETH_HOST" ]; then
+		ip link del "$VETH_HOST"
+	else
+		echo "      Nie można usunąć: $VETH_HOST nie istnieje"
+	fi
 }
 
 cleanup_and_stop() {
