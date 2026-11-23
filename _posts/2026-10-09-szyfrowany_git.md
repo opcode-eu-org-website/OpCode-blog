@@ -59,6 +59,16 @@ Hasło dla klucza szyfrującego trzymane jest w `.git/remote_fs/$REMOTE_NAME/.pa
 
 ##### wady i potencjalne problemy
 
-Wadą takiego podejscia są potencjalne problemy związane z używaniem repozytorium git na zamontowanym zdalnym zasobie.
+Wadą takiego podejścia są potencjalne problemy związane z używaniem repozytorium git na zamontowanym zdalnym zasobie.
 W szczególności potencjalny problem wyścigu przy równoległych push przez wiele osób (związany z brakiem flock na sshfs i opóźnieniami które mogą być problematyczne dla systemu blokowania git'a).
 Problem ten można rozwiązać obejmując cały ten skrypt globalnym lockiem - patrz [lock_over_ssh.sh](files/lock_over_ssh.sh).
+
+Innym problemem jest powolne działanie, zwłaszcza gdy ping do serwera trzymającego taki remote jest znaczny (co znacznie spowalnia listowanie zasobów SFTP).
+
+
+### szyfrowany backup zamiast remote
+
+Jeszcze innym podejściem jest po prostu utworzenie zdalnej szyfrowanej kopii zapasowej repozytorium (samego `.git` lub także z kopią roboczą). Można do tego użyć np. [restic](https://restic.net/).
+Dzięki wbudowanej deduplikacji dobrze radzi sobie z przypadkiem gdy backupuje także kopię roboczą a repo git używa annex lub lfs i te same duże pliki znajdują się w obu miejscach.
+
+[Skrypt backupujący](/files/git2restic.sh) wykorzystujący konfig z repozytorium i jego nazwę na potrzeby tworzonego backupu.
