@@ -1,20 +1,29 @@
 #!/bin/bash
 
 set -e
-REPO_PATH=$(git rev-parse --show-toplevel)
-REPO_NAME=$(basename $REPO_PATH)
-REPO_GIT=$(git rev-parse --git-dir)
 
-PASS_FILE="/sciezka/do/hasla/do/szyfrowania/restic"
-REMOTES="
-# można używać bezpośrednio sftp
-sftp:user@host:/path/
-# ale jeżli mamy dostęp ssh i możliwość uruchomia restic-rest-server po stronie zdalnej) to dużo szybciej będzie działać poprzez rest 
-rest-tunnel user@host 8008 /path/
-"
-
-# read PASS_FILE and REMOTES from per repo config file
-. "$REPO_GIT/git2restic.conf"
+if [ -z "$PASS_FILE" ]; then
+	REPO_PATH=$(git rev-parse --show-toplevel)
+	REPO_NAME=$(basename $REPO_PATH)
+	REPO_GIT=$(git rev-parse --git-dir)
+	
+	PASS_FILE="/sciezka/do/hasla/do/szyfrowania/restic"
+	REMOTES="
+		# można używać bezpośrednio sftp
+		sftp:user@host:/path/
+		# ale jeżeli mamy dostęp ssh i możliwość uruchomia restic-rest-server po stronie zdalnej) to dużo szybciej będzie działać poprzez rest
+		rest-tunnel user@host 8008 /path/
+	"
+	
+	# read config values (PASS_FILE and REMOTES) from per repo config file
+	. "$REPO_GIT/git2restic.conf"
+	
+	BACKUP_SETUP() {
+		BACKUP_ARGS=("--host" "$REPO_NAME")
+	}
+		
+ 	cd $REPO_PATH
+fi
 
 SSH_CTL_SOCK="/tmp/ssh-restic-$$.sock"
 cleanup() {
@@ -23,8 +32,6 @@ cleanup() {
 	rm -f "$SSH_CTL_SOCK"
 }
 trap cleanup EXIT
-
-cd $REPO_PATH
 
 while read REMOTE HOST LOCAL_PORT BASE_PATH REMOTE_PORT; do
 	case "$REMOTE" in
@@ -54,17 +61,15 @@ while read REMOTE HOST LOCAL_PORT BASE_PATH REMOTE_PORT; do
 	esac
 	
 	case "${1:-backup}" in
-		"init")
-			restic --password-file "$PASS_FILE" --repo "$REMOTE" init
-			;;
 		"backup")
-			restic --password-file "$PASS_FILE" --repo "$REMOTE" backup --host "$REPO_NAME" --skip-if-unchanged .
-			;;
-		"mount")
-			restic --password-file "$PASS_FILE" --repo "$REMOTE" mount $2
+			BACKUP_SETUP "$@"
+			restic --password-file "$PASS_FILE" --repo "$REMOTE" backup --skip-if-unchanged "${BACKUP_ARGS[@]}" "${BACKUP_PATH:-.}"
 			;;
 		"clean")
 			restic --password-file "$PASS_FILE" --repo "$REMOTE" forget --keep-last ${2:-1} --prune
+			;;
+		*) # init, mount, check, ...
+			restic --password-file "$PASS_FILE" --repo "$REMOTE" "$@"
 			;;
 	esac
 done <<< "$REMOTES"
